@@ -1,0 +1,138 @@
+
+// nanostache.js
+function st (str, data) {
+    return str.replace(/<(\w+)>/g, function(a, m){ var s = data[m.trim()]; return s == null ? '' : s })
+}
+
+// Walk layers and return a collection of data objects describing the sprite
+
+function getSprites() {
+
+    var artboard  = [[doc currentPage] currentArtboard]
+
+    if (!artboard) {
+        var artboards = [[doc currentPage] artboards]
+        if ([artboards count] > 0) {
+            artboard = [[[doc currentPage] artboards] objectAtIndex:0]
+        }
+    }
+
+    var layers = artboard ? [artboard layers] : [[doc currentPage] layers]
+
+    var sprites = {}
+    var layerCount = [layers count]
+
+    if (layerCount === 0) {
+        throw new Error("No sprite layers found")
+    }
+
+    for (var i = [layers count] - 1; i >= 0; i--) {
+        var layer = [layers objectAtIndex:i]
+        var name  = [layer name]
+
+        if (!/sprite/.test(name)) continue
+
+        sprites[name] = {
+            name   : name,
+            width  : [[layer frame] width],
+            height : [[layer frame] height],
+            items  : []
+        }
+        var items = [layer layers]
+
+        for (var i = [items count] - 1; i >= 0; i--) {
+            var layer = [items objectAtIndex:i]
+            sprites[name].items.push({
+                name   : [layer name],
+                parent : name,
+                x      : ([[layer frame] x] * 1)      || 0,
+                y      : ([[layer frame] y] * 1)      || 0,
+                w      : ([[layer frame] width] * 1)  || 0,
+                h      : ([[layer frame] height] * 1) || 0
+            })
+        }
+    }
+
+    return sprites
+}
+
+// Generate CSS rules
+
+function generateBaseRule (sprite) {
+    sprite.date = new Date().toISOString()
+    return st("""
+/*
+    DO NOT EDIT
+    Auto-generated using the Sketch Sprites plugin - <date>
+    http://github.com/ricardobeat/sketch-css-sprites
+*/
+
+.<name> {
+    display: inline-block;
+    *display: inline;
+    background-image: url(images/<name>.png) !important;
+    background-repeat: no-repeat !important;
+}
+
+@media only screen and (-webkit-min-device-pixel-ratio: 1.5),
+       only screen and (min-device-pixel-ratio: 1.5),
+       only screen and (min-resolution: 1.5dppx) {
+    .<name> {
+        background-image: url(images/<name>@2x.png) !important;
+        background-size: <width>px <height>px;
+    }
+}
+""", sprite)
+}
+
+function generateItemRule (item) {
+    return st("""
+.<parent>.<name> {
+    width: <w>px;
+    height: <h>px;
+    background-position: -<x>px -<y>px;
+}
+""", {
+        name: item.name,
+        parent: item.parent,
+        w: Math.ceil(item.w),
+        h: Math.ceil(item.h),
+        x: Math.floor(item.x),
+        y: Math.floor(item.y)
+    })
+}
+
+// Fetch layer data and build CSS output
+
+function getSpriteCSS() {
+    var css = ""
+    var sprites = this.getSprites()
+
+    for (var name in sprites) {
+        var sprite = sprites[name]
+        css += generateBaseRule(sprite)
+        for (var i=0, item; item = sprite.items[i]; i++) {
+            css += generateItemRule(item)
+        }
+    }
+
+    return css
+}
+
+// ----------------------------------------------------------------------------
+
+var pasteBoard = NSPasteboard.generalPasteboard()
+pasteBoard.declareTypes_owner( [ NSPasteboardTypeString ], null )
+
+try {
+    pasteBoard.setString_forType(getSpriteCSS(), NSPasteboardTypeString)
+    var alert = [[NSAlert alloc] init]
+    [alert setMessageText:"Sprite CSS copied to clipboard"]
+    [alert addButtonWithTitle:'Yay']
+    [alert runModal]
+} catch (err) {
+    var alert = [[NSAlert alloc] init]
+    alert.setMessageText("OMG something went wrong\n" + err.message)
+    alert.addButtonWithTitle("Okay...")
+    alert.runModal()
+}
