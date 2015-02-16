@@ -45,10 +45,10 @@ function getSprites() {
             sprites[name].items.push({
                 name   : [layer name],
                 parent : name,
-                x      : ([[layer frame] x] * 1)      || 0,
-                y      : ([[layer frame] y] * 1)      || 0,
-                w      : ([[layer frame] width] * 1)  || 0,
-                h      : ([[layer frame] height] * 1) || 0
+                x      : +([[layer frame] x])      || 0,
+                y      : +([[layer frame] y])      || 0,
+                w      : +([[layer frame] width])  || 0,
+                h      : +([[layer frame] height]) || 0
             })
         }
     }
@@ -119,20 +119,41 @@ function getSpriteCSS() {
     return css
 }
 
+function getPathFromPrompt(){
+    var panel = [NSSavePanel savePanel]
+    [panel setMessage:"Where do you want to save the CSS?"]
+    [panel setCanCreateDirectories: true]
+    var default_dir = [[doc fileURL] URLByDeletingLastPathComponent]
+    [panel setDirectoryURL:default_dir]
+    if ([panel runModal] == NSOKButton){
+        return [panel filename]
+    }
+}
+
 // ----------------------------------------------------------------------------
 
 var pasteBoard = NSPasteboard.generalPasteboard()
 pasteBoard.declareTypes_owner( [ NSPasteboardTypeString ], null )
 
 try {
-    pasteBoard.setString_forType(getSpriteCSS(), NSPasteboardTypeString)
+    var output = getSpriteCSS()
+    pasteBoard.setString_forType(output, NSPasteboardTypeString)
+
     var alert = [[NSAlert alloc] init]
-    [alert setMessageText:"Sprite CSS copied to clipboard"]
-    [alert addButtonWithTitle:'Yay']
-    [alert runModal]
+    alert.setMessageText("Your sprite's CSS has been copied to the clipboard.")
+    alert.addButtonWithTitle("Great, thanks!")
+    alert.addButtonWithTitle("Save to file")
+
+    if (alert.runModal() === 1001) {
+        var savePath = getPathFromPrompt()
+        if (savePath) {
+            var contents = [NSString stringWithString:output]
+            [contents writeToURL:savePath atomically:true]
+        }
+    }
 } catch (err) {
     var alert = [[NSAlert alloc] init]
-    alert.setMessageText("OMG something went wrong\n" + err.message)
+    alert.setMessageText("This sucks. There has been an error when generating your CSS. Please forgive me.\n\n" + err.message)
     alert.addButtonWithTitle("Okay...")
     alert.runModal()
 }
